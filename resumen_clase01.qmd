@@ -1,0 +1,207 @@
+---
+title: "Señales y Sistemas — Resumen Clase 1"
+subtitle: "Fundamentos de Python aplicados al audio digital"
+author: "Agustín"
+date: today
+format:
+  pdf:
+    toc: false
+    number-sections: true
+    fontsize: 11pt
+    geometry: margin=2.5cm
+lang: es
+---
+
+# Filosofía general
+
+El objetivo no es memorizar fórmulas, sino **pensar en términos de variables y operaciones**. 
+Cada ejercicio sigue el mismo patrón:
+
+1. Identificar las **magnitudes** del problema (duración, frecuencia, canales, etc.)
+2. Guardarlas en **variables** con nombres descriptivos
+3. Aplicar la **operación** correspondiente
+4. Mostrar el resultado con **formato adecuado**
+
+Esto permite extender cualquier solución a nuevos valores sin reescribir el código.
+
+---
+
+# Variables y tipos de datos
+
+Una **variable** es un nombre que apunta a un valor en memoria.
+
+```python
+sample_rate = 44100   # int:   número entero
+amplitud    = 0.8     # float: número decimal
+canal       = "Left"  # str:   texto
+es_estereo  = True    # bool:  verdadero/falso
+```
+
+**Intuición:** en audio, cada parámetro físico tiene un tipo natural. 
+Las frecuencias y muestras son enteros; las amplitudes normalizadas son flotantes.
+
+---
+
+# Operadores fundamentales
+
+| Operador | Significado        | Ejemplo            | Resultado |
+|----------|--------------------|--------------------|-----------|
+| `*`      | Multiplicación     | `3 * 48000`        | `144000`  |
+| `/`      | División real      | `197 / 60`         | `3.28`    |
+| `//`     | División entera    | `197 // 60`        | `3`       |
+| `%`      | Resto (módulo)     | `197 % 60`         | `17`      |
+| `**`     | Potencia           | `2 ** 10`          | `1024`    |
+
+**Intuición:** `//` y `%` son complementarios — juntos descomponen cualquier cantidad en 
+*partes completas* y *sobrante*. Útil para convertir segundos a mm:ss, bytes a MB, etc.
+
+---
+
+# Patrones de cálculo recurrentes
+
+## Muestras totales
+
+$$N = f_s \times t$$
+
+```python
+total_muestras = sample_rate * duracion
+```
+
+**Extensión:** válido para cualquier $f_s$ y $t$. Cambiar los valores de las variables 
+es suficiente — la lógica no cambia.
+
+## Tamaño de archivo WAV
+
+$$\text{bytes} = f_s \times t \times C \times \frac{b}{8}$$
+
+donde $C$ = canales, $b$ = bit depth.
+
+```python
+tamano_bytes = sample_rate * duracion * canales * (bit_depth / 8)
+tamano_mb    = tamano_bytes / (10**6)
+print(f"{tamano_mb:.2f} MB")
+```
+
+**Intuición:** dividir bits por 8 convierte a bytes; dividir por $10^6$ convierte a megabytes. 
+La jerarquía de unidades sigue siempre el mismo patrón.
+
+## Conversión de tiempo a mm:ss
+
+```python
+minutos = duracion_seg // 60   # partes completas de 60
+segundos = duracion_seg % 60   # lo que sobra
+resultado = f"{minutos}:{segundos}"
+```
+
+**Extensión:** el mismo patrón sirve para convertir segundos a hh:mm:ss agregando 
+un nivel más de `//` y `%`.
+
+## Frecuencia de nota MIDI
+
+$$f = 440 \times 2^{(m - 69)/12}$$
+
+```python
+f = 440 * 2 ** ((midi - 69) / 12)
+print(f"{f:.2f} Hz")
+```
+
+**Intuición:** cada octava duplica la frecuencia ($\times 2$); cada semitono es $2^{1/12}$. 
+La nota MIDI 69 es el La 440 Hz — punto de referencia universal.
+
+## Frecuencia de Nyquist
+
+$$f_N = \frac{f_s}{2}$$
+
+```python
+f_nyquist = sample_rate / 2
+```
+
+**Intuición:** un sistema de muestreo solo puede representar frecuencias hasta la mitad 
+de su $f_s$. Por eso el CD usa 44100 Hz: cubre hasta ~22 kHz, límite del oído humano.
+
+---
+
+# Strings y formato de salida
+
+```python
+# f-string: interpolación de variables
+print(f"Valor: {x:.2f}")     # 2 decimales
+print(f"Total: {n:,}")       # separador de miles
+print(f"Tiempo: {m}:{s}\n")  # salto de línea con \n
+```
+
+**Intuición:** el formato de salida comunica la precisión adecuada. 
+Frecuencias en Hz con 2 decimales; tamaños en MB con 2 decimales; 
+conteos enteros con separador de miles.
+
+---
+
+# Lógica booleana
+
+Un **booleano** es `True` o `False`. Se construye con comparaciones y operadores lógicos:
+
+| Operador | Significado                        |
+|----------|------------------------------------|
+| `>=`     | mayor o igual                      |
+| `and`    | ambas condiciones deben ser True   |
+| `or`     | al menos una debe ser True         |
+| `not`    | invierte el resultado              |
+
+```python
+es_profesional = sr >= 44100 and bits >= 16
+es_hd          = sr >= 96000 or bits >= 24
+es_surround    = canales > 2
+calidad_ok     = es_profesional and not es_surround
+```
+
+**Extensión:** este patrón sirve para cualquier sistema de clasificación: 
+calidad de red, condiciones de alarma, validación de parámetros de entrada.
+
+---
+
+# Bucles y listas
+
+Cuando hay que aplicar la misma operación a múltiples valores, se usa una **lista** + `for`:
+
+```python
+valores = [22050, 44100, 48000, 96000, 192000]
+
+for v in valores:
+    resultado = v / 2
+    print(f"SR: {v} Hz -> Nyquist: {resultado} Hz")
+```
+
+Para recorrer **dos listas en paralelo**, se usa `zip()`:
+
+```python
+buffers = [64, 128, 256, 512]
+rates   = [44100, 44100, 48000, 96000]
+
+for buf, sr in zip(buffers, rates):
+    latencia = (buf / sr) * 1000
+    print(f"Buffer: {buf} @ {sr} Hz -> {latencia:.2f} ms")
+```
+
+**Intuición:** el bucle evita repetir código. Si mañana hay 10 valores nuevos, 
+solo se modifica la lista — la lógica permanece igual.
+
+---
+
+# Regla de oro
+
+> **Nombrar bien las variables es programar bien.**  
+> `sr`, `bit_depth`, `duracion_seg` comunican más que `a`, `b`, `c`.  
+> El código se escribe una vez y se lee muchas veces.
+
+---
+
+# Vibecoding: IA como asistente
+
+El profe introduce el concepto de usar IA (Claude, ChatGPT) para generar código:
+
+- **No reemplaza entender**: hay que verificar que el código generado sea correcto.
+- **Ser específico**: cuanto más claro el prompt, mejor el resultado.
+- **Iterar**: el primer resultado rara vez es el definitivo.
+
+Ejemplo de prompt efectivo:
+> *"Escribí una función Python que convierta MIDI a Hz. Fórmula: f = 440 × 2^((midi−69)/12). Con docstring y type hints."*
